@@ -12,6 +12,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // Clear loading message
       activitiesList.innerHTML = "";
+      activitySelect.querySelectorAll("option:not(:first-child)").forEach((option) => {
+        option.remove();
+      });
 
       // Populate activities list
       Object.entries(activities).forEach(([name, details]) => {
@@ -24,8 +27,53 @@ document.addEventListener("DOMContentLoaded", () => {
           <h4>${name}</h4>
           <p>${details.description}</p>
           <p><strong>Schedule:</strong> ${details.schedule}</p>
-          <p><strong>Availability:</strong> ${spotsLeft} spots left</p>
+          <p class="availability"><strong>Availability:</strong> ${spotsLeft} spots left</p>
+          <div class="participants">
+            <h5>Participants</h5>
+            <ul></ul>
+          </div>
         `;
+
+        const participantsList = activityCard.querySelector(".participants ul");
+        details.participants.forEach((participant) => {
+          const participantItem = document.createElement("li");
+          const participantName = document.createElement("span");
+          participantName.textContent = participant;
+
+          const removeButton = document.createElement("button");
+          removeButton.type = "button";
+          removeButton.className = "remove-participant";
+          removeButton.setAttribute("aria-label", `Remove ${participant}`);
+          removeButton.title = `Remove ${participant}`;
+          removeButton.textContent = "×";
+          removeButton.addEventListener("click", async () => {
+            removeButton.disabled = true;
+
+            try {
+              const response = await fetch(
+                `/activities/${encodeURIComponent(name)}/participants/${encodeURIComponent(participant)}`,
+                { method: "DELETE" }
+              );
+              const result = await response.json();
+
+              if (!response.ok) {
+                throw new Error(result.detail || "Failed to unregister participant");
+              }
+
+              participantItem.remove();
+              const availability = activityCard.querySelector(".availability");
+              const updatedSpots =
+                details.max_participants - participantsList.children.length;
+              availability.textContent = `Availability: ${updatedSpots} spots left`;
+            } catch (error) {
+              removeButton.disabled = false;
+              console.error("Error unregistering participant:", error);
+            }
+          });
+
+          participantItem.append(participantName, removeButton);
+          participantsList.appendChild(participantItem);
+        });
 
         activitiesList.appendChild(activityCard);
 
@@ -62,6 +110,7 @@ document.addEventListener("DOMContentLoaded", () => {
         messageDiv.textContent = result.message;
         messageDiv.className = "success";
         signupForm.reset();
+        await fetchActivities();
       } else {
         messageDiv.textContent = result.detail || "An error occurred";
         messageDiv.className = "error";
